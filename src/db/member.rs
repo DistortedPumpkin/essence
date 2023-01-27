@@ -1,4 +1,4 @@
-use crate::{db::DbExt, models::Member, snowflake::with_model_type, NotFoundExt};
+use crate::{cache, db::DbExt, models::Member, snowflake::with_model_type, NotFoundExt};
 use itertools::Itertools;
 
 macro_rules! query_member {
@@ -16,10 +16,9 @@ macro_rules! query_member {
                 u.bio AS bio,
                 u.flags AS flags
             FROM
-                members m
-            CROSS JOIN LATERAL (
-                SELECT * FROM users u WHERE u.id = m.id
-            ) AS u
+                members AS m
+            INNER JOIN
+                users AS u ON u.id = m.id
             "# + $where,
             $($arg),*
         )
@@ -50,7 +49,7 @@ macro_rules! construct_member {
 
 use crate::db::get_pool;
 use crate::http::member::{EditClientMemberPayload, EditMemberPayload};
-use crate::models::ModelType;
+use crate::models::{MaybePartialUser, ModelType};
 pub(crate) use construct_member;
 
 #[async_trait::async_trait]
@@ -229,6 +228,41 @@ pub trait MemberDbExt<'t>: DbExt<'t> {
         .await
     }
 
+    /// Creates a member in the database with the given guild and user ID. If the user is already
+    /// in the guild, this returns `None`.
+    ///
+    /// # Note
+    /// This method uses transactions, on the event of an ``Err`` the transaction must be properly
+    /// rolled back, and the transaction must be committed to save the changes.
+    ///
+    /// # Errors
+    /// * If an error occurs with creating the member.
+    async fn create_member(&mut self, guild_id: u64, user_id: u64) -> sqlx::Result<Option<Member>> {
+        let member = sqlx::query!(
+            "INSERT INTO members (guild_id, id) VALUES ($1, $2)
+            ON CONFLICT (guild_id, id) DO NOTHING RETURNING joined_at",
+            guild_id as i64,
+            user_id as i64,
+        )
+        .fetch_optional(self.transaction())
+        .await?
+        .map(|m| Member {
+            guild_id,
+            user: MaybePartialUser::Partial { id: user_id },
+            nick: None,
+            joined_at: m.joined_at,
+            roles: None,
+        });
+
+        if let Some(guild_cache) = cache::write().await.guild_mut(guild_id) {
+            if let Some(ref mut members) = guild_cache.members {
+                members.insert(user_id);
+            }
+        }
+
+        Ok(member)
+    }
+
     /// Deletes a member from the database with the given guild and user ID.
     ///
     /// # Note
@@ -246,6 +280,10 @@ pub trait MemberDbExt<'t>: DbExt<'t> {
         .execute(self.transaction())
         .await?;
 
+        cache::write()
+            .await
+            .guild_mut(guild_id)
+            .map(|g| g.members.as_mut().map(|m| m.remove(&user_id)));
         Ok(())
     }
 }

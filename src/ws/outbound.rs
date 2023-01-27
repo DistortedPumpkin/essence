@@ -3,7 +3,9 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::models::invite::Invite;
-use crate::models::{Channel, ClientUser, Guild, GuildChannel, Member, PartialGuild, Role};
+use crate::models::{
+    Channel, ClientUser, Guild, GuildChannel, Member, Message, PartialGuild, Role,
+};
 
 /// Extra information about member removal.
 #[derive(Debug, Serialize)]
@@ -130,5 +132,22 @@ pub enum OutboundMessage {
         /// Extra information about the removal.
         #[serde(flatten)]
         info: MemberRemoveInfo,
+    },
+    /// Sent by harmony when a message is sent.
+    MessageCreate {
+        /// The message that was sent by a user.
+        message: Message,
+    },
+    /// Sent by harmony when a message is updated.
+    MessageUpdate {
+        /// The message before it was modified.
+        before: Message,
+        /// The message after it was modified.
+        after: Message,
+    },
+    /// Sent by harmony when a message is deleted.
+    MessageDelete {
+        /// The ID of the message that was deleted.
+        message_id: u64,
     },
 }

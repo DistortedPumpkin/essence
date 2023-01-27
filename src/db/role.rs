@@ -1,9 +1,4 @@
-use crate::{
-    db::DbExt,
-    http::role::CreateRolePayload,
-    models::{Role, RoleFlags},
-    Error, NotFoundExt,
-};
+use crate::{db::DbExt, http::role::CreateRolePayload, models::{Role, RoleFlags}, Error, NotFoundExt, cache};
 
 macro_rules! construct_role {
     ($data:ident) => {{
@@ -96,7 +91,7 @@ pub trait RoleDbExt<'t>: DbExt<'t> {
         let role_position = self.assert_role_exists(guild_id, role_id).await?;
         let (top_role_id, top_position) = self.fetch_top_role(guild_id, user_id).await?;
 
-        if role_position >= top_position {
+        if role_position >= top_position && !self.is_guild_owner(guild_id, user_id).await? {
             return Err(Error::RoleTooLow {
                 guild_id,
                 top_role_id,
@@ -123,7 +118,9 @@ pub trait RoleDbExt<'t>: DbExt<'t> {
             self.fetch_top_role(guild_id, invoker_id).await?;
         let (_, target_top_position) = self.fetch_top_role(guild_id, target_id).await?;
 
-        if invoker_top_position <= target_top_position {
+        if invoker_top_position <= target_top_position
+            && !self.is_guild_owner(guild_id, invoker_id).await?
+        {
             return Err(Error::RoleTooLow {
                 guild_id,
                 top_role_id: invoker_top_role_id,
@@ -220,6 +217,43 @@ pub trait RoleDbExt<'t>: DbExt<'t> {
         let roles = sqlx::query!(
             "SELECT * FROM roles WHERE guild_id = $1 ORDER BY position ASC",
             guild_id as i64,
+        )
+        .fetch_all(self.executor())
+        .await?
+        .into_iter()
+        .map(|r| construct_role!(r))
+        .collect();
+
+        Ok(roles)
+    }
+
+    /// Fetches all roles from the databased in the given guild assigned to the given member.
+    ///
+    /// # Errors
+    /// * If an error occurs with fetching the roles.
+    /// * If the guild does not exist.
+    async fn fetch_all_roles_for_member(
+        &self,
+        guild_id: u64,
+        member_id: u64,
+    ) -> sqlx::Result<Vec<Role>> {
+        let default_role_id = with_model_type(guild_id, ModelType::Role);
+        let roles = sqlx::query!(
+            r#"SELECT
+                *
+            FROM
+                roles
+            WHERE
+                guild_id = $1
+            AND (
+                id = $3
+                OR id IN (SELECT role_id FROM role_data WHERE guild_id = $1 AND user_id = $2)
+            )
+            ORDER BY position ASC
+            "#,
+            guild_id as i64,
+            member_id as i64,
+            default_role_id as i64,
         )
         .fetch_all(self.executor())
         .await?
@@ -345,6 +379,9 @@ pub trait RoleDbExt<'t>: DbExt<'t> {
         .execute(self.transaction())
         .await?;
 
+        if let Some(guild_cache) = cache::write().await.guild_mut(guild_id) {
+            guild_cache.member_permissions.clear();
+        }
         Ok(role)
     }
 
@@ -374,6 +411,9 @@ pub trait RoleDbExt<'t>: DbExt<'t> {
         .execute(self.transaction())
         .await?;
 
+        if let Some(guild_cache) = cache::write().await.guild_mut(guild_id) {
+            guild_cache.member_permissions.clear();
+        }
         Ok(())
     }
 }

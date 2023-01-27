@@ -1,5 +1,7 @@
 #![cfg_attr(feature = "db", feature(once_cell))]
 #![cfg_attr(any(feature = "auth", feature = "db"), feature(is_some_and))]
+#![cfg_attr(feature = "async-trait", feature(async_fn_in_trait))]
+#![cfg_attr(feature = "async-trait", allow(incomplete_features))]
 #![allow(
     clippy::module_name_repetitions,
     clippy::cast_possible_truncation,
@@ -14,6 +16,8 @@
 #[cfg(any(feature = "auth", feature = "token-parsing"))]
 pub mod auth;
 #[cfg(feature = "db")]
+pub mod cache;
+#[cfg(feature = "db")]
 pub mod db;
 pub mod error;
 pub mod http;
@@ -26,7 +30,7 @@ pub mod ws;
 
 pub use error::{Error, NotFoundExt, Result};
 pub use maybe::Maybe;
-pub use permissions::calculate_permissions;
+pub use permissions::{calculate_permissions, calculate_permissions_sorted};
 
 #[macro_export]
 macro_rules! serde_for_bitflags {

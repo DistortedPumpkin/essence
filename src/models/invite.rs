@@ -1,12 +1,14 @@
 use crate::models::PartialGuild;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+#[cfg(feature = "openapi")]
 use utoipa::ToSchema;
 
 #[cfg(feature = "client")]
 use serde::Deserialize;
 
-/// A model representing an invite to a guild.
+/// A model representing an invite to a guild. All invites are **immutable**; they cannot be
+/// modified once changed.
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "client", derive(Deserialize))]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
@@ -21,8 +23,6 @@ pub struct Invite {
     pub guild: Option<PartialGuild>,
     /// The ID of the guild this invite leads to.
     pub guild_id: u64,
-    /// The ID of the channel this invite leads to, or `None` if this invite leads to no channel.
-    pub channel_id: Option<u64>,
     /// A timestamp representing when this invite was created.
     #[cfg_attr(feature = "bincode", bincode(with_serde))]
     pub created_at: DateTime<Utc>,

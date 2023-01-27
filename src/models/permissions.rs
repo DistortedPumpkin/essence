@@ -20,7 +20,6 @@ bitflags::bitflags! {
     /// channels.
     ///
     /// All permissions are available for roles.
-    #[derive(Default)]
     pub struct Permissions: i64 {
         /// \*: People with this permission can view channels and receive events from them.
         const VIEW_CHANNEL = 1 << 0;
@@ -99,7 +98,7 @@ bitflags::bitflags! {
         /// grant or deny any permissions they do not have themselves. They can also assign and
         /// remove any roles to other members, as long as the target role is below their top role.
         const MANAGE_ROLES = 1 << 16;
-        /// \*: People with this permission can create an invite which links to the channel.
+        /// \-: People with this permission can create invites to the guild.
         const CREATE_INVITES = 1 << 17;
         /// \-: People with this permission can revoke or pause invites of any channel in the guild.
         /// This does not take into account the `CREATE_INVITES` permission, meaning they can revoke
@@ -141,10 +140,31 @@ bitflags::bitflags! {
         /// channel. This means that despite any overwrites, they will have all permissions
         /// throughout the entire guild.
         const ADMINISTRATOR = 1 << 32;
+
+        /// Default permissions used for new guilds.
+        const DEFAULT = Self::VIEW_CHANNEL.bits
+            | Self::VIEW_MESSAGE_HISTORY.bits
+            | Self::SEND_MESSAGES.bits
+            | Self::ADD_REACTIONS.bits
+            | Self::STAR_MESSAGES.bits
+            | Self::ATTACH_FILES.bits
+            | Self::SEND_EMBEDS.bits
+            | Self::CREATE_INVITES.bits
+            | Self::USE_EXTERNAL_EMOJIS.bits
+            | Self::CHANGE_NICKNAME.bits
+            | Self::CONNECT.bits
+            | Self::SPEAK.bits;
     }
 }
 
 serde_for_bitflags!(i64: Permissions);
+
+impl Default for Permissions {
+    #[inline]
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 /// Represents a pair of permissions, one representing allowed permissions and the other
 /// representing denied permissions. This is so that any permission that is represented as
