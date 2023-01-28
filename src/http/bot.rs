@@ -22,3 +22,13 @@ pub struct CreateUserResponse {
     /// The token to use for authentication.
     pub token: String,
 }
+
+/// Payload sent when deleting a bot.
+#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(feature = "client", derive(Serialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct DeleteBotPayload {
+    /// The password of the bot owner.
+    #[cfg_attr(feature = "openapi", schema(format = "password"))]
+    pub password: String,
+}
