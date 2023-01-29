@@ -16,7 +16,7 @@ pub struct CreateBotPayload {
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "client", derive(Deserialize))]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
-pub struct CreateUserResponse {
+pub struct CreateBotResponse {
     /// The ID of the bot.
     pub id: u64,
     /// The token to use for authentication.
